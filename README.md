@@ -1,141 +1,374 @@
-# Lua Promise Module
+# Promise
 
-A fully-featured, type-safe, and chainable **Promise implementation for Roblox/Lua**, designed to make asynchronous programming clean, readable, and maintainable.
+A lightweight, optimized Promise implementation for Roblox Luau.
+
+Built with Luau optimizations (`--!native` and `--!optimize 2`), this library provides a familiar asynchronous programming API inspired by JavaScript Promises while taking advantage of Roblox's task scheduler.
 
 ---
 
 ## Features
 
-* **Chainable `.andThen()` and `.catch()`** for sequential asynchronous operations
-* **`.finally()`** for cleanup operations regardless of fulfillment or rejection
-* **`.Error()`** for structured error handling
-* **`Promise.all()`**, `Promise.race()`, and `Promise.filter()`** for aggregating multiple Promises
-* **Retry utilities**: `retry`, `retryDelay`, `retryAsync`
-* **Delay & timeout utilities**: `Promise.delay`, `Promise.timeOut`
-* **Thread & coroutine support**: `Promise.resume`, `Promise.wrap`
-* **Event-based promises**: `Promise.fromEvent`, `Promise.fromEvents`
-* **Discord integration**: `Promise.sendToDiscord`
-* **Embed creation**: `Promise.CreateEmbed`
-* Fully **stackable** and **type-safe** with Luau generics
+- ⚡ Fast and lightweight
+- 🔄 Promise chaining
+- ❌ Error handling
+- 🏁 `finally()` support
+- ⏳ Delays and timeouts
+- 🔁 Automatic retries
+- 🏎️ Promise racing
+- 📦 Promise collections
+- 📡 Event-to-Promise conversion
+- 🚫 Cancellation tokens
+- 📝 Logging helpers
+- 💬 Discord webhook support
+- 📄 Discord embed validation
+- 🧠 Microtask callback queue
 
 ---
 
-## Installation
+# Installation
 
-Place the `Promise` module in `ReplicatedStorage` or any other shared directory:
+Clone or copy the module into your project.
 
 ```lua
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Promise = require(ReplicatedStorage.Promise)
+local Promise = require(path.To.Promise)
 ```
 
 ---
 
-## Basic Usage
-
-### Creating a Promise
+# Creating a Promise
 
 ```lua
-local promise = Promise.new(function(resolve, reject)
-    task.delay(1, function()
-        resolve("Hello World")
-    end)
-end)
+local Promise = require(path.To.Promise)
 
-promise:andThen(function(result)
-    print(result)  -- Output: Hello World
+Promise.new(function(resolve, reject)
+    task.wait(1)
+    resolve("Hello World!")
+end)
+:andThen(function(result)
+    print(result)
 end)
 ```
 
-### Chaining Promises
+---
+
+# Chaining
 
 ```lua
 Promise.resolve(5)
-    :andThen(function(val) return val * 2 end)
-    :andThen(function(val) print(val) end)
+:andThen(function(value)
+    return value * 2
+end)
+:andThen(function(value)
+    print(value)
+end)
 ```
 
-### Error Handling
+---
+
+# Error Handling
 
 ```lua
 Promise.new(function(resolve, reject)
     reject("Something went wrong")
 end)
 :catch(function(err)
-    print("Error:", err)
-end)
-```
-
-### Finally
-
-```lua
-Promise.resolve(10)
-    :finally(function()
-        print("Done")
-    end)
-```
-
----
-
-## Advanced Utilities
-
-```lua
--- Retry with delay
-Promise.retryDelay(function(resolve, reject)
-    -- async operation
-end, 3, 0.5)
-
--- Aggregate multiple Promises
-Promise.all({
-    Promise.resolve(1),
-    Promise.resolve(2),
-    Promise.resolve(3)
-}):andThen(function(results)
-    print(results) -- {1, 2, 3}
-end)
-
--- Wait for first to finish
-Promise.race({
-    Promise.delay(1):andThen(function() return "First" end),
-    Promise.delay(2):andThen(function() return "Second" end)
-}):andThen(print) -- "First"
-```
-
----
-
-## Event-based Promises
-
-```lua
-local eventPromise = Promise.fromEvent(someEvent)
-eventPromise:andThen(function(...)
-    print("Event fired with:", ...)
-end)
-```
-
----
-
-## Discord Integration
-
-```lua
-Promise.sendToDiscord("WEBHOOK_URL", {
-    content = "Hello from Roblox!"
-}):andThen(function(res)
-    print("Message sent successfully")
-end):catch(function(err)
     warn(err)
 end)
 ```
 
 ---
 
-## Contributing
+# Finally
 
-1. Fork the repository
-2. Make your improvements
-3. Submit a pull request with a detailed description of changes
+```lua
+Promise.delay(2)
+:finally(function()
+    print("Finished!")
+end)
+```
 
 ---
 
-## License
+# Delay
 
-MIT License – Free to use, modify, and distribute.
+```lua
+Promise.delay(3)
+:andThen(function()
+    print("3 seconds later")
+end)
+```
+
+---
+
+# Promise.resolve()
+
+```lua
+Promise.resolve("Success")
+:andThen(print)
+```
+
+---
+
+# Promise.reject()
+
+```lua
+Promise.reject("Failed")
+:catch(print)
+```
+
+---
+
+# Promise.all()
+
+Waits for every Promise to finish.
+
+```lua
+Promise.all({
+    Promise.delay(1),
+    Promise.delay(2),
+    Promise.delay(3)
+})
+:andThen(function(results)
+    print("All complete")
+end)
+```
+
+---
+
+# Promise.race()
+
+Returns the first Promise to finish.
+
+```lua
+Promise.race({
+    Promise.delay(5),
+    Promise.delay(1)
+})
+```
+
+---
+
+# Timeout
+
+```lua
+Promise.timeOut(
+    Promise.delay(10),
+    3
+)
+:catch(function(err)
+    warn(err)
+end)
+```
+
+---
+
+# Retry
+
+Retry until successful.
+
+```lua
+Promise.retry(function(resolve, reject)
+    if math.random() > .5 then
+        resolve("Success")
+    else
+        reject("Retry")
+    end
+end, 5)
+```
+
+---
+
+# Retry With Delay
+
+```lua
+Promise.retryDelay(function(resolve, reject)
+    reject("Failed")
+end, 10, 1)
+```
+
+---
+
+# Retry Async
+
+Uses sensible defaults.
+
+```lua
+Promise.retryAsync(function(resolve, reject)
+    resolve("Done")
+end)
+```
+
+Default values:
+
+- Retries: **30**
+- Delay: **0.3 seconds**
+
+---
+
+# Await
+
+```lua
+local result = promise:await()
+```
+
+---
+
+# Events
+
+Convert a Roblox event into a Promise.
+
+```lua
+Promise.fromEvent(button.MouseButton1Click)
+:andThen(function()
+    print("Clicked!")
+end)
+```
+
+---
+
+# Multiple Events
+
+```lua
+Promise.fromEvents({
+    signal1,
+    signal2,
+    signal3
+})
+```
+
+Resolves once every event has fired.
+
+---
+
+# Cancellation Tokens
+
+```lua
+local token = Promise.CancellationToken.new()
+
+local promise = Promise.new(function(resolve)
+    task.wait(5)
+    resolve("Finished")
+end, token)
+
+token:Cancel()
+```
+
+---
+
+# Logging
+
+```lua
+Promise.LogMessage("Info", "Started")
+Promise.LogMessage("Warn", "Low memory")
+Promise.LogMessage("Debug", "Value = 42")
+```
+
+Error logging automatically rejects the Promise.
+
+```lua
+Promise.LogMessage("Error", "Something failed")
+```
+
+---
+
+# Discord Embed Validation
+
+```lua
+Promise.CreateEmbed({
+    title = "Example",
+    description = "Hello!"
+})
+```
+
+Checks:
+
+- Embed is a table
+- Title length
+- Description length
+
+---
+
+# Discord Webhooks
+
+```lua
+Promise.sendToDiscord(
+    WEBHOOK_URL,
+    {
+        content = "Hello!"
+    }
+)
+```
+
+Supports JSON payloads through `HttpService:PostAsync()`.
+
+---
+
+# API
+
+## Constructors
+
+| Function | Description |
+|----------|-------------|
+| `Promise.new()` | Creates a Promise |
+| `Promise.resolve()` | Creates a resolved Promise |
+| `Promise.reject()` | Creates a rejected Promise |
+
+---
+
+## Instance Methods
+
+| Method | Description |
+|---------|-------------|
+| `:andThen()` | Chains Promises |
+| `:catch()` | Handles errors |
+| `:finally()` | Runs regardless of outcome |
+| `:Error()` | Custom error callback |
+| `:await()` | Waits synchronously |
+
+---
+
+## Utility Methods
+
+| Function | Description |
+|---------|-------------|
+| `Promise.delay()` | Waits before resolving |
+| `Promise.all()` | Waits for all Promises |
+| `Promise.race()` | Returns first completed Promise |
+| `Promise.timeOut()` | Rejects after timeout |
+| `Promise.retry()` | Retries executor |
+| `Promise.retryDelay()` | Retries with delay |
+| `Promise.retryAsync()` | Async retry helper |
+| `Promise.fromEvent()` | Converts one event |
+| `Promise.fromEvents()` | Converts multiple events |
+| `Promise.LogMessage()` | Promise-based logger |
+| `Promise.CreateEmbed()` | Discord embed validator |
+| `Promise.sendToDiscord()` | Sends webhook requests |
+
+---
+
+# Performance
+
+This library is designed for Roblox Luau and makes use of:
+
+- `--!native`
+- `--!optimize 2`
+- `task.spawn`
+- `task.defer`
+- Custom microtask scheduling
+- Minimal allocations
+
+---
+
+# Requirements
+
+- Roblox Studio
+- Luau
+- `HttpService` enabled for webhook support
+
+---
+
+# License
+
+MIT License
+
+Feel free to modify, improve, and use this project in your own Roblox experiences.
