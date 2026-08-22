@@ -171,7 +171,7 @@ local same = promise:unwrap()
 
 ## Non-yielding state inspection
 
-v1.2 adds `isSettled()` and `result()`.
+v1.1 adds `isSettled()` and `result()`.
 
 ```lua
 local promise = Promise.resolve("ready", 200)
