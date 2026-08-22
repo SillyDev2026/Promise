@@ -1,374 +1,395 @@
-# Promise
+# Promise v1.1.0
 
-A lightweight, optimized Promise implementation for Roblox Luau.
+A lightweight Roblox Luau Promise module with strict typing, cancellation, retries, event helpers, collection utilities, and a lower-overhead v1.1 core.
 
-Built with Luau optimizations (`--!native` and `--!optimize 2`), this library provides a familiar asynchronous programming API inspired by JavaScript Promises while taking advantage of Roblox's task scheduler.
+## What changed in v1.1
 
----
+v1.1 focuses on call/setup speed and bug fixing without removing the v1.0.5 API.
 
-## Features
+Performance work:
 
-- ⚡ Fast and lightweight
-- 🔄 Promise chaining
-- ❌ Error handling
-- 🏁 `finally()` support
-- ⏳ Delays and timeouts
-- 🔁 Automatic retries
-- 🏎️ Promise racing
-- 📦 Promise collections
-- 📡 Event-to-Promise conversion
-- 🚫 Cancellation tokens
-- 📝 Logging helpers
-- 💬 Discord webhook support
-- 📄 Discord embed validation
-- 🧠 Microtask callback queue
+- `Promise.resolve()` and `Promise.reject()` build settled Promises directly instead of creating resolver closures just to settle immediately.
+- Resolving a Promise with an already-settled Promise adopts its state directly.
+- `Promise.all()`, `allPacked()`, `allSettled()`, `race()`, `any()`, and `mapLimit()` set up their internal observers directly instead of creating an extra executor task.
+- Collection cancellation no longer creates a temporary cancelled Promise to transfer cancellation.
+- `mapLimit()` keeps an O(1) active counter instead of recounting the active table when new jobs launch.
+- `Promise.delay()` and `delayValue()` create their timers directly.
+- `Promise.timeout()` installs its observer and timer directly.
+- `fromEvent()` and `fromEvents()` install signal connections directly.
+- Settled callback lists are flushed as one queued batch per Promise instead of one queue closure per observer.
+- The microtask queue reuses one queue and drains newly-added work in the same batch, with a budget to avoid an unlimited single flush.
+- Empty packed return values reuse an internal immutable empty pack.
+- Already-disconnected handles reuse an immutable no-op object.
 
----
+## Install
 
-# Installation
-
-Clone or copy the module into your project.
+Place `Promise.lua` in `ReplicatedStorage` or your package folder.
 
 ```lua
-local Promise = require(path.To.Promise)
+local Promise = require(game:GetService("ReplicatedStorage").Promise)
 ```
 
----
-
-# Creating a Promise
+The module uses:
 
 ```lua
-local Promise = require(path.To.Promise)
+--!strict
+--!native
+--!optimize 2
+```
 
-Promise.new(function(resolve, reject)
+## Basic
+
+```lua
+Promise.new(function(resolve, reject, onCancel)
+    local alive = true
+
+    onCancel(function()
+        alive = false
+    end)
+
     task.wait(1)
-    resolve("Hello World!")
+
+    if alive then
+        resolve("Loaded", 200)
+    end
 end)
-:andThen(function(result)
-    print(result)
+:andThen(function(value, code)
+    print(value, code)
+end)
+:catch(warn)
+```
+
+`Promise.new()` still runs executors on Roblox's task scheduler, so a yielding executor does not yield the caller that created the Promise.
+
+## Fast settled values
+
+```lua
+local ready = Promise.resolve("ready")
+local failed = Promise.reject("failed")
+```
+
+v1.2 has a shorter internal path for both of these calls.
+
+A settled callback is still delivered through the Promise callback queue:
+
+```lua
+local ran = false
+
+Promise.resolve(10):andThen(function()
+    ran = true
+end)
+
+print(ran) -- false at this point
+task.wait()
+print(ran) -- true
+```
+
+## `Promise.try()` and `Promise.tryNow()`
+
+Use `Promise.try()` when the function may yield or when you want it wrapped through the normal Promise executor path.
+
+```lua
+Promise.try(function()
+    task.wait()
+    return "done"
 end)
 ```
 
----
+For a non-yielding hot path, v1.2 adds `Promise.tryNow()`:
 
-# Chaining
+```lua
+local result = Promise.tryNow(function(a, b)
+    return a + b
+end, 20, 22)
+
+print(result:expect()) -- 42
+```
+
+`tryNow()` executes the callback immediately, so use it only when immediate execution is what you want.
+
+## Chaining
 
 ```lua
 Promise.resolve(5)
 :andThen(function(value)
-    return value * 2
+    return Promise.delayValue(0.25, value * 2)
 end)
-:andThen(function(value)
-    print(value)
+:tap(function(value)
+    print("value", value)
 end)
-```
-
----
-
-# Error Handling
-
-```lua
-Promise.new(function(resolve, reject)
-    reject("Something went wrong")
-end)
-:catch(function(err)
-    warn(err)
-end)
-```
-
----
-
-# Finally
-
-```lua
-Promise.delay(2)
-:finally(function()
-    print("Finished!")
-end)
-```
-
----
-
-# Delay
-
-```lua
-Promise.delay(3)
-:andThen(function()
-    print("3 seconds later")
-end)
-```
-
----
-
-# Promise.resolve()
-
-```lua
-Promise.resolve("Success")
+:andThenReturn("done")
 :andThen(print)
 ```
 
----
+Returned Promises flatten automatically.
 
-# Promise.reject()
+Also available:
+
+- `andThenCall`
+- `andThenReturn`
+- `catchCall`
+- `catchReturn`
+- `tap`
+- `tapCatch`
+- `Then`
+- `Catch`
+- `Error`
+- `Finally`
+
+## Manual resolvers
 
 ```lua
-Promise.reject("Failed")
-:catch(print)
+local deferred = Promise.withResolvers()
+
+task.defer(function()
+    deferred.resolve("ready")
+end)
+
+print(deferred.promise:expect())
 ```
 
----
+`Promise.pending()` is the same API.
 
-# Promise.all()
-
-Waits for every Promise to finish.
+## Await / unwrap
 
 ```lua
-Promise.all({
-    Promise.delay(1),
-    Promise.delay(2),
-    Promise.delay(3)
-})
-:andThen(function(results)
-    print("All complete")
+local ok, value = Promise.delayValue(1, "Done"):await()
+
+if ok then
+    print(value)
+end
+```
+
+Throw on rejection/cancellation:
+
+```lua
+local value = promise:expect()
+local same = promise:unwrap()
+```
+
+`Expect` and `Unwrap` aliases are also available.
+
+## Non-yielding state inspection
+
+v1.2 adds `isSettled()` and `result()`.
+
+```lua
+local promise = Promise.resolve("ready", 200)
+
+print(promise:isSettled())
+
+local status, value, code = promise:result()
+print(status, value, code)
+```
+
+`result()` never waits. A pending Promise returns `Promise.Status.Pending` with no result values.
+
+Existing helpers remain:
+
+```lua
+promise:getStatus()
+promise:status()
+promise:isPending()
+promise:isFulfilled()
+promise:isRejected()
+promise:isCancelled()
+```
+
+## Cancellation
+
+```lua
+local token = Promise.newCancellationToken()
+
+local work = Promise.new(function(resolve, reject, onCancel)
+    local cancelled = false
+
+    onCancel(function(reason)
+        cancelled = true
+        print("cancelled", reason)
+    end)
+
+    task.wait(5)
+
+    if not cancelled then
+        resolve("Finished")
+    end
+end, token)
+
+token:Cancel("No longer needed")
+```
+
+Direct cancellation:
+
+```lua
+work:cancel("Stopped")
+```
+
+## Collections
+
+```lua
+local values = Promise.all({
+    Promise.resolve(1),
+    Promise.resolve(2),
+    Promise.resolve(3),
+}):expect()
+```
+
+Available:
+
+- `Promise.all()`
+- `Promise.allPacked()`
+- `Promise.allSettled()`
+- `Promise.settleAll()` alias
+- `Promise.race()`
+- `Promise.first()` alias
+- `Promise.any()`
+- `Promise.map()`
+- `Promise.mapLimit()`
+- `Promise.each()`
+- `Promise.filter()`
+
+`all`, `mapLimit`, and `each` keep an `.n` logical count for nil slots.
+
+### Limited concurrency
+
+```lua
+Promise.mapLimit(ids, 4, function(id)
+    return loadPlayer(id)
 end)
 ```
 
----
+v1.1 no longer scans the active worker table each time it launches another item.
 
-# Promise.race()
-
-Returns the first Promise to finish.
+## Timers
 
 ```lua
-Promise.race({
-    Promise.delay(5),
-    Promise.delay(1)
-})
-```
+Promise.delay(1):andThen(function(elapsed)
+    print(elapsed)
+end)
 
----
-
-# Timeout
-
-```lua
-Promise.timeOut(
-    Promise.delay(10),
-    3
-)
-:catch(function(err)
-    warn(err)
+Promise.delayValue(1, "ready", 200):andThen(function(value, code)
+    print(value, code)
 end)
 ```
 
----
+`Promise.after()` aliases `Promise.delay()`.
 
-# Retry
+## Timeout
 
-Retry until successful.
+Static:
+
+```lua
+Promise.timeout(request, 3, "Request timed out")
+```
+
+Instance:
+
+```lua
+request:timeout(3, "Request timed out")
+```
+
+Cancel the source when the timeout wins:
+
+```lua
+request:timeout(3, "Request timed out", true)
+```
+
+The older `timeOut` spelling remains supported.
+
+## Retry
 
 ```lua
 Promise.retry(function(resolve, reject)
-    if math.random() > .5 then
+    if math.random() > 0.5 then
         resolve("Success")
     else
-        reject("Retry")
+        reject("Try again")
     end
 end, 5)
 ```
 
----
+Also available:
 
-# Retry With Delay
+- `retryDelay`
+- `retryAsync`
+- `retryBackoff`
+- `retryUntilSuccess`
+- `repeatUntil`
 
-```lua
-Promise.retryDelay(function(resolve, reject)
-    reject("Failed")
-end, 10, 1)
-```
-
----
-
-# Retry Async
-
-Uses sensible defaults.
+## Events
 
 ```lua
-Promise.retryAsync(function(resolve, reject)
-    resolve("Done")
+Promise.fromSignal(workspace.ChildAdded, function(child)
+    return child.Name == "Target"
+end):andThen(function(child)
+    print(child)
 end)
 ```
 
-Default values:
+`fromEvent()` is the same one-signal helper.
 
-- Retries: **30**
-- Delay: **0.3 seconds**
-
----
-
-# Await
-
-```lua
-local result = promise:await()
-```
-
----
-
-# Events
-
-Convert a Roblox event into a Promise.
-
-```lua
-Promise.fromEvent(button.MouseButton1Click)
-:andThen(function()
-    print("Clicked!")
-end)
-```
-
----
-
-# Multiple Events
+Wait for several signals:
 
 ```lua
 Promise.fromEvents({
-    signal1,
-    signal2,
-    signal3
-})
+    eventA.Event,
+    eventB.Event,
+}):andThen(function(results)
+    print(results[1][1], results[2][1])
+end)
 ```
 
-Resolves once every event has fired.
+v1.2 validates the signal list before connecting and uses direct one-shot connection setup.
 
----
-
-# Cancellation Tokens
+## Function wrapping
 
 ```lua
-local token = Promise.CancellationToken.new()
+local loadAsync = Promise.async(function(id)
+    return loadData(id)
+end)
 
-local promise = Promise.new(function(resolve)
-    task.wait(5)
-    resolve("Finished")
-end, token)
-
-token:Cancel()
+loadAsync(123):andThen(print)
 ```
 
----
+`Promise.async`, `Promise.wrap`, and `Promise.promisify` refer to the same wrapper API.
 
-# Logging
+## Status constants
 
 ```lua
-Promise.LogMessage("Info", "Started")
-Promise.LogMessage("Warn", "Low memory")
-Promise.LogMessage("Debug", "Value = 42")
+Promise.Status.Pending
+Promise.Status.Fulfilled
+Promise.Status.Rejected
+Promise.Status.Cancelled
 ```
 
-Error logging automatically rejects the Promise.
+## Compatibility
 
-```lua
-Promise.LogMessage("Error", "Something failed")
-```
+v1.1 retains the v1.0.5 surface, including:
 
----
+- `Promise.new`
+- `Promise.defer`
+- `Promise.resolve`
+- `Promise.reject`
+- `Promise.try`
+- `Promise.pending`
+- `Promise.withResolvers`
+- all collection helpers
+- retry helpers
+- timer helpers
+- event helpers
+- logging helpers
+- Discord embed/webhook helpers
+- cancellation tokens
+- uppercase method aliases
+- `timeOut`
 
-# Discord Embed Validation
+New v1.1 QOL APIs are additive: `tryNow`, `isSettled`, `result`, `unwrap`, `Unwrap`, `async`, `first`, and `settleAll`.
 
-```lua
-Promise.CreateEmbed({
-    title = "Example",
-    description = "Hello!"
-})
-```
+## Tests
 
-Checks:
+Put `Promise.lua` in `ReplicatedStorage`, then run:
 
-- Embed is a table
-- Title length
-- Description length
+- `tests/PromiseTests.server.lua` from `ServerScriptService`
+- `benchmarks/Benchmark.server.lua` from `ServerScriptService`
 
----
-
-# Discord Webhooks
-
-```lua
-Promise.sendToDiscord(
-    WEBHOOK_URL,
-    {
-        content = "Hello!"
-    }
-)
-```
-
-Supports JSON payloads through `HttpService:PostAsync()`.
-
----
-
-# API
-
-## Constructors
-
-| Function | Description |
-|----------|-------------|
-| `Promise.new()` | Creates a Promise |
-| `Promise.resolve()` | Creates a resolved Promise |
-| `Promise.reject()` | Creates a rejected Promise |
-
----
-
-## Instance Methods
-
-| Method | Description |
-|---------|-------------|
-| `:andThen()` | Chains Promises |
-| `:catch()` | Handles errors |
-| `:finally()` | Runs regardless of outcome |
-| `:Error()` | Custom error callback |
-| `:await()` | Waits synchronously |
-
----
-
-## Utility Methods
-
-| Function | Description |
-|---------|-------------|
-| `Promise.delay()` | Waits before resolving |
-| `Promise.all()` | Waits for all Promises |
-| `Promise.race()` | Returns first completed Promise |
-| `Promise.timeOut()` | Rejects after timeout |
-| `Promise.retry()` | Retries executor |
-| `Promise.retryDelay()` | Retries with delay |
-| `Promise.retryAsync()` | Async retry helper |
-| `Promise.fromEvent()` | Converts one event |
-| `Promise.fromEvents()` | Converts multiple events |
-| `Promise.LogMessage()` | Promise-based logger |
-| `Promise.CreateEmbed()` | Discord embed validator |
-| `Promise.sendToDiscord()` | Sends webhook requests |
-
----
-
-# Performance
-
-This library is designed for Roblox Luau and makes use of:
-
-- `--!native`
-- `--!optimize 2`
-- `task.spawn`
-- `task.defer`
-- Custom microtask scheduling
-- Minimal allocations
-
----
-
-# Requirements
-
-- Roblox Studio
-- Luau
-- `HttpService` enabled for webhook support
-
----
-
-# License
-
-MIT License
-
-Feel free to modify, improve, and use this project in your own Roblox experiences.
+The benchmark prints construction/setup timings for several hot paths. Run it in the same Studio environment when comparing versions.
