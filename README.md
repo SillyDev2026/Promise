@@ -1,8 +1,19 @@
-# Promise v1.2.0
+# Promise v1.2.1
+
+## v1.2.1 — bounded Promise scheduler parameters
+
+Numeric scheduling inputs now reject `math.huge` and `-math.huge` along with negative/NaN values. This applies to `delay`, `delayValue`, `timeout`, `mapLimit` concurrency, retry counts and retry/backoff delays.
+
+These values were not meaningful finite schedules and could lead to engine-level timer errors or a stalled operation. Normal finite arguments, promise chaining, cancellation, and return signatures are unchanged. Run `tests/PromiseFiniteOptionsRegression.server.lua` and existing project integration tests.
+
+The source already exports Luau types, but a complete Studio strict-analysis pass has not been performed. No throughput improvement is asserted.
+
+---
+
 
 A lightweight, typed Promise library for Roblox Luau focused on **low overhead, predictable scheduling, cancellation, retries, concurrency utilities, events, and ergonomic async workflows**.
 
-Promise v1.2.0 keeps the existing API while improving several hot paths used for settled values, collections, timers, events, and synchronous function wrapping.
+Promise v1.2.1 keeps the existing API while improving several hot paths used for settled values, collections, timers, events, and synchronous function wrapping.
 
 ---
 
@@ -85,9 +96,9 @@ This means a yielding executor does **not** yield the code that created the Prom
 
 ---
 
-# What's New in v1.2.0
+# What's New in v1.2.1
 
-v1.2.0 focuses primarily on reducing setup overhead while preserving the existing Promise API.
+v1.2.1 focuses primarily on reducing setup overhead while preserving the existing Promise API.
 
 ### Faster settled Promises
 
@@ -164,7 +175,7 @@ The internal microtask queue is reused and can process newly-added work during t
 
 ### Reduced temporary allocations
 
-v1.2.0 also reuses internal immutable values for common cases such as:
+v1.2.1 also reuses internal immutable values for common cases such as:
 
 * empty packed return values
 * already-disconnected handles
@@ -812,7 +823,7 @@ This is useful for:
 * rate-limited APIs
 * expensive parallel work
 
-v1.2.0 uses an O(1) active worker counter for scheduling additional jobs.
+v1.2.1 uses an O(1) active worker counter for scheduling additional jobs.
 
 ---
 
@@ -1060,7 +1071,7 @@ end)
 
 Each result entry contains the packed arguments from its corresponding event.
 
-v1.2.0 validates the complete signal list before creating connections.
+v1.2.1 validates the complete signal list before creating connections.
 
 ---
 
@@ -1367,7 +1378,7 @@ Several compatibility aliases are available:
 
 # Performance Design
 
-Promise v1.2.0 is designed to avoid unnecessary scheduler work and temporary allocations on common paths.
+Promise v1.2.1 is designed to avoid unnecessary scheduler work and temporary allocations on common paths.
 
 Important optimizations include:
 
@@ -1390,7 +1401,7 @@ These optimizations primarily target **Promise creation and setup overhead** rat
 
 # Compatibility
 
-v1.2.0 keeps the existing Promise surface while adding newer quality-of-life APIs.
+v1.2.1 keeps the existing Promise surface while adding newer quality-of-life APIs.
 
 Existing APIs include:
 
@@ -1513,7 +1524,7 @@ ServerScriptService
 
 ```lua
 print(Promise.VERSION)
--- 1.2.0
+-- 1.2.1
 ```
 
-**Current version: `1.2.0`**
+**Current version: `1.2.1`**

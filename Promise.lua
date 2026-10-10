@@ -156,7 +156,7 @@ export type PromiseModule = {
 local Promise: any = {}
 Promise.__index = Promise
 
-local VERSION = "1.2.0"
+local VERSION = "1.2.1"
 local PENDING: Status = "PENDING"
 local FULFILLED: Status = "FULFILLED"
 local REJECTED: Status = "REJECTED"
@@ -1434,7 +1434,7 @@ end
 
 function Promise.mapLimit(values: { any }, concurrency: number, mapper: (value: any, index: number) -> any): Promise
 	assert(type(values) == "table", "Promise.mapLimit expects a table")
-	assert(type(concurrency) == "number" and concurrency >= 1 and concurrency % 1 == 0, "concurrency must be a positive integer")
+	assert(type(concurrency) == "number" and concurrency >= 1 and concurrency < math.huge and concurrency % 1 == 0, "concurrency must be a finite positive integer")
 	assert(type(mapper) == "function", "Promise.mapLimit expects a mapper function")
 
 	local total = #values
@@ -1578,12 +1578,14 @@ function Promise.filter(values: { any }, filterFunc: (value: any, index: number)
 end
 
 local function validateRetries(retries: number): ()
-	assert(type(retries) == "number" and retries >= 0 and retries % 1 == 0, "retries must be a non-negative integer")
+	assert(type(retries) == "number" and retries >= 0 and retries < math.huge and retries % 1 == 0, "retries must be a finite non-negative integer")
 end
 
 local function retryInternal(executor: Executor, retries: number, delaySeconds: number?): Promise
 	assert(type(executor) == "function", "Executor must be a function")
 	validateRetries(retries)
+    assert(delaySeconds == nil or (type(delaySeconds) == "number" and delaySeconds >= 0
+        and delaySeconds < math.huge), "delaySeconds must be finite and non-negative")
 
 	return Promise.new(function(resolve: Resolve, reject: Reject, onCancel: OnCancel)
 		local cancelled = false
@@ -1630,7 +1632,7 @@ function Promise.retry(executor: Executor, retries: number): Promise
 end
 
 function Promise.retryDelay(executor: Executor, retries: number, delaySeconds: number): Promise
-	assert(type(delaySeconds) == "number" and delaySeconds >= 0, "delaySeconds must be >= 0")
+	assert(type(delaySeconds) == "number" and delaySeconds >= 0 and delaySeconds < math.huge, "delaySeconds must be finite and non-negative")
 	return retryInternal(executor, retries, delaySeconds)
 end
 
@@ -1644,8 +1646,8 @@ function Promise.retryBackoff(executor: Executor, retries: number?, baseDelay: n
 	local base = baseDelay or 0.25
 	local maximum = maxDelay or 5
 	validateRetries(retryCount)
-	assert(type(base) == "number" and base >= 0, "baseDelay must be >= 0")
-	assert(type(maximum) == "number" and maximum >= base, "maxDelay must be >= baseDelay")
+	assert(type(base) == "number" and base >= 0 and base < math.huge, "baseDelay must be finite and non-negative")
+	assert(type(maximum) == "number" and maximum >= base and maximum < math.huge, "maxDelay must be finite and >= baseDelay")
 
 	return Promise.new(function(resolve: Resolve, reject: Reject, onCancel: OnCancel)
 		local cancelled = false
@@ -1685,7 +1687,7 @@ function Promise.retryBackoff(executor: Executor, retries: number?, baseDelay: n
 end
 
 function Promise.delay(seconds: number): Promise
-	assert(type(seconds) == "number" and seconds >= 0, "seconds must be >= 0")
+	assert(type(seconds) == "number" and seconds >= 0 and seconds < math.huge, "seconds must be finite and >= 0")
 
 	local promise = newPending()
 	local resolve, _, _ = makeResolvers(promise)
@@ -1704,7 +1706,7 @@ end
 Promise.after = Promise.delay
 
 function Promise.delayValue(seconds: number, ...: any): Promise
-	assert(type(seconds) == "number" and seconds >= 0, "seconds must be >= 0")
+	assert(type(seconds) == "number" and seconds >= 0 and seconds < math.huge, "seconds must be finite and >= 0")
 	local values = packed(...)
 	local promise = newPending()
 	local resolve, _, _ = makeResolvers(promise)
@@ -1724,7 +1726,7 @@ function Promise.never(): Promise
 end
 
 function Promise.timeout(value: any, seconds: number, reason: any?, cancelSource: boolean?): Promise
-	assert(type(seconds) == "number" and seconds >= 0, "seconds must be >= 0")
+	assert(type(seconds) == "number" and seconds >= 0 and seconds < math.huge, "seconds must be finite and >= 0")
 	local source = Promise.resolve(value) :: PromiseInternal
 	if source._state ~= PENDING then
 		return source

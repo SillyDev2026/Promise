@@ -1,0 +1,18 @@
+--!strict
+local Promise = require(script.Parent:WaitForChild("Promise"))
+assert(Promise.Version() == "1.2.1")
+local function rejects(call: () -> ())
+    assert(not pcall(call), "Nonfinite option was accepted")
+end
+rejects(function() Promise.delay(math.huge) end)
+rejects(function() Promise.delayValue(math.huge, 1) end)
+rejects(function() Promise.timeout(Promise.never(), math.huge) end)
+rejects(function() Promise.mapLimit({1}, math.huge, function(v) return v end) end)
+rejects(function() Promise.retry(function(resolve) resolve(1) end, math.huge) end)
+rejects(function() Promise.retryDelay(function(resolve) resolve(1) end, 1, math.huge) end)
+rejects(function() Promise.retryBackoff(function(resolve) resolve(1) end, 1, 1, math.huge) end)
+local ok, elapsed = Promise.delay(0.01):await()
+assert(ok and type(elapsed) == "number" and elapsed >= 0)
+local result, values = Promise.mapLimit({1, 2}, 1, function(v) return v * 2 end):await()
+assert(result and values[1] == 2 and values[2] == 4)
+print("Promise 1.2.1 finite parameter regression PASS")
